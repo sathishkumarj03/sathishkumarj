@@ -1,0 +1,51 @@
+import pandas as pd import numpy as np import networkx as nx
+from sklearn.preprocessing import MinMaxScaler from keras.models import Model, save_model from keras.layers import Input, Dense
+import pickle
+# Step 1: Read CSV File
+file_path = 'PS_20174392719_1491204439457_log.csv' df = pd.read_csv(file_path)
+# Step 2: Create a graph
+G = nx.from_pandas_edgelist(df, 'nameOrig', 'nameDest', ['amount', 'type', 'isFraud'])
+# Step 3: Compute graph-based features for each node degree_centrality = nx.degree_centrality(G)
+# Add graph-based features back into the DataFrame
+df['orig_degree_centrality'] = df['nameOrig'].apply(lambda x: degree_centrality.get(x, 0)) df['dest_degree_centrality'] = df['nameDest'].apply(lambda x: degree_centrality.get(x, 0))
+# Step 4: Prepare the data for the autoencoder
+# Select your features and target columns as per your requirement
+features = df[['amount', 'oldbalanceOrg', 'newbalanceOrig', 'oldbalanceDest', 'newbalanceDest', 'orig_degree_centrality', 'dest_degree_centrality']] scaler = MinMaxScaler()
+scaled_features = scaler.fit_transform(features)
+# Step 5: Define and train the autoencoder input_dim = scaled_features.shape[1]
+38
+input_layer = Input(shape=(input_dim,))
+encoded = Dense(14, activation='relu')(input_layer) decoded = Dense(input_dim, activation='sigmoid')(encoded) autoencoder = Model(input_layer, decoded)
+autoencoder.compile(optimizer='adam', loss='mean_squared_error') autoencoder.fit(scaled_features, scaled_features, epochs=50, batch_size=32, shuffle=True, validation_split=0.2)
+# Use the autoencoder for anomaly detection (optional) predictions = autoencoder.predict(scaled_features) # Save the trained model
+model_path = 'autoencoder_model.h5' save_model(autoencoder, model_path)
+# Save the scaler scaler_path = 'scaler.pkl'
+with open(scaler_path, 'wb') as file: pickle.dump(scaler, file)
+print("Model and scaler have been saved.")
+# mse = np.mean(np.power(scaled_features - predictions, 2), axis=1)
+# fraud_threshold = ... # Define based on your understanding of the data # anomalies = mse > fraud_threshold
+# print(mse)
+Evaluate.py
+import numpy as np import networkx as nx
+from keras.models import load_model import pickle
+from module.f import evaluate_transaction2 # Function to prepare a sample transaction
+39
+def prepare_sample_transaction(sample, graph, scaler):
+orig_degree_centrality = nx.degree_centrality(graph).get(sample['nameOrig'], 0) dest_degree_centrality = nx.degree_centrality(graph).get(sample['nameDest'], 0) sample_features = [sample['amount'], sample['oldbalanceOrg'],
+sample['newbalanceOrig'], sample['oldbalanceDest'], sample['newbalanceDest'], orig_degree_centrality, dest_degree_centrality]
+sample_scaled = scaler.transform([sample_features]) return sample_scaled
+# Function to evaluate a transaction
+def evaluate_transaction(sample_transaction, sample_scaled, autoencoder, fraud_threshold):
+reconstructed = autoencoder.predict(sample_scaled)
+mse = np.mean(np.power(sample_scaled - reconstructed, 2)) is_anomalous = evaluate_transaction2(sample_transaction) return is_anomalous, mse
+# Load the trained model and scaler model_path = 'autoencoder_model.h5' autoencoder = load_model(model_path)
+scaler_path = 'scaler.pkl'
+with open(scaler_path, 'rb') as file: scaler = pickle.load(file)
+# Define a sample transaction (replace with actual data) sample_transaction = {
+"amount": 10000,
+"oldbalanceOrg": 50000,
+"newbalanceOrig": 40000,
+"oldbalanceDest": 1000,
+"newbalanceDest": 1100, "nameOrig": "C556223230", "nameDest": "C2094777811"
+}
+40
